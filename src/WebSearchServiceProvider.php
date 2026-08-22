@@ -4,6 +4,7 @@ namespace Whilesmart\WebSearch;
 
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Support\ServiceProvider;
+use Whilesmart\WebSearch\Console\ProbeCommand;
 use Whilesmart\WebSearch\Contracts\ContentFetcher;
 use Whilesmart\WebSearch\Contracts\SearchProvider;
 use Whilesmart\WebSearch\Contracts\Source;
@@ -72,6 +73,8 @@ class WebSearchServiceProvider extends ServiceProvider
     public function boot(): void
     {
         if ($this->app->runningInConsole()) {
+            $this->commands([ProbeCommand::class]);
+
             $this->publishes([
                 __DIR__.'/../config/websearch.php' => config_path('websearch.php'),
             ], 'websearch-config');
