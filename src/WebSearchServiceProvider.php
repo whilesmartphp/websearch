@@ -13,6 +13,7 @@ use Whilesmart\WebSearch\Fetchers\Crawl4aiFetcher;
 use Whilesmart\WebSearch\Metering\NullUsageMeter;
 use Whilesmart\WebSearch\Providers\BraveProvider;
 use Whilesmart\WebSearch\Providers\SearxngProvider;
+use Whilesmart\WebSearch\Providers\SerperProvider;
 use Whilesmart\WebSearch\Providers\TavilyProvider;
 use Whilesmart\WebSearch\Sources\FeedSource;
 use Whilesmart\WebSearch\Sources\ReliefWebSource;
@@ -28,6 +29,7 @@ class WebSearchServiceProvider extends ServiceProvider
     public static array $searchProviders = [
         'brave' => BraveProvider::class,
         'tavily' => TavilyProvider::class,
+        'serper' => SerperProvider::class,
         'searxng' => SearxngProvider::class,
     ];
 
@@ -65,6 +67,9 @@ class WebSearchServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton('websearch.fetchers', fn ($app): array => $this->buildFetchers($app['config']->get('websearch')));
+        $this->app->singleton(FetcherManager::class, fn ($app): FetcherManager => new FetcherManager(
+            $app->make('websearch.fetchers'),
+        ));
         $this->app->singleton(SourceRegistry::class, fn ($app): SourceRegistry => new SourceRegistry(
             $this->buildSources($app['config']->get('websearch')),
         ));

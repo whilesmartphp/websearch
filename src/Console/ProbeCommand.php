@@ -84,16 +84,33 @@ class ProbeCommand extends Command
                 $byProvider[$provider->name()] = $domains;
 
                 $rows[] = [
-                    $provider->name(),
-                    count($results),
-                    count($domains),
-                    $this->onTopic($query, $results).'%',
-                    $ms.'ms',
-                    $status,
+                    'provider' => $provider->name(),
+                    'results' => count($results),
+                    'domains' => count($domains),
+                    'lexical_match' => $this->lexicalMatch($query, $results),
+                    'latency_ms' => $ms,
+                    'status' => $status,
+                    'items' => array_map(fn (SearchResult $result): array => $result->toArray(), $results),
                 ];
             }
 
-            $this->table(['provider', 'results', 'domains', 'on-topic', 'latency', 'status'], $rows);
+            $this->table(
+                ['provider', 'results', 'domains', 'lexical match', 'latency', 'status'],
+                array_map(fn (array $row): array => [
+                    $row['provider'],
+                    $row['results'],
+                    $row['domains'],
+                    $row['lexical_match'].'%',
+                    $row['latency_ms'].'ms',
+                    $row['status'],
+                ], $rows),
+            );
+
+            foreach ($rows as $row) {
+                foreach ($row['items'] as $item) {
+                    $this->line('  '.$row['provider'].' | '.$item['title'].' | '.$item['url']);
+                }
+            }
 
             $overlap = $this->overlap($byProvider);
 
@@ -139,7 +156,7 @@ class ProbeCommand extends Command
      *
      * @param  list<SearchResult>  $results
      */
-    private function onTopic(string $query, array $results): int
+    private function lexicalMatch(string $query, array $results): int
     {
         if ($results === []) {
             return 0;

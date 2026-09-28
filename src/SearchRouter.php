@@ -2,8 +2,10 @@
 
 namespace Whilesmart\WebSearch;
 
+use GuzzleHttp\Promise\Utils;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Throwable;
+use Whilesmart\WebSearch\Contracts\ConcurrentSearchProvider;
 use Whilesmart\WebSearch\Contracts\SearchProvider;
 use Whilesmart\WebSearch\Contracts\UsageMeter;
 use Whilesmart\WebSearch\Enums\RoutingMode;
@@ -49,32 +51,7 @@ class SearchRouter
     private function waterfall(array $providers, SearchQuery $query): SearchResponse
     {
         $failures = [];
-
-        foreach ($providers as $provider) {
-            try {
-                $results = $this->call($provider, $query);
-            } catch (Throwable $e) {
-                $failures[$provider->name()] = $e->getMessage();
-
-                continue;
-            }
-
-            if ($results !== []) {
-                return new SearchResponse($results, [$provider->name()], $failures);
-            }
-        }
-
-        return new SearchResponse([], [], $failures);
-    }
-
-    /**
-     * @param  list<SearchProvider>  $providers
-     */
-    private function merge(array $providers, SearchQuery $query): SearchResponse
-    {
-        $failures = [];
         $used = [];
-        $seen = [];
 
         foreach ($providers as $provider) {
             try {
@@ -87,21 +64,34 @@ class SearchRouter
 
             $used[] = $provider->name();
 
+            if ($results !== []) {
+                return new SearchResponse($results, $used, $failures);
+            }
+        }
+
+        return new SearchResponse([], $used, $failures);
+    }
+
+    /**
+     * @param  list<SearchProvider>  $providers
+     */
+    private function merge(array $providers, SearchQuery $query): SearchResponse
+    {
+        [$answers, $failures] = $this->concurrentCalls($providers, $query);
+        $used = array_keys($answers);
+        $seen = [];
+
+        foreach ($answers as $provider => $results) {
             foreach ($results as $result) {
                 $key = $result->fingerprint();
 
                 if (! isset($seen[$key])) {
-                    $seen[$key] = ['result' => $result, 'providers' => [], 'rank' => $result->rank];
-
-                    continue;
+                    $seen[$key] = ['result' => $result, 'providers' => [], 'rank' => $result->rank, 'score' => 0.0];
                 }
 
                 $seen[$key]['rank'] = min($seen[$key]['rank'], $result->rank);
-            }
-
-            foreach ($results as $result) {
-                $key = $result->fingerprint();
-                $seen[$key]['providers'][] = $provider->name();
+                $seen[$key]['providers'][] = $provider;
+                $seen[$key]['score'] += 1 / (60 + max(1, $result->rank));
             }
         }
 
@@ -113,18 +103,74 @@ class SearchRouter
 
         foreach ($seen as $entry) {
             $providerNames = array_values(array_unique($entry['providers']));
-            $agreement = count($providerNames) / count($used);
-            $position = 1 / max(1, $entry['rank']);
-
             $merged[] = $entry['result']->withProviders(
                 $providerNames,
-                round(($agreement * 0.5) + ($position * 0.5), 6),
+                round($entry['score'], 8),
+                $entry['rank'],
             );
         }
 
-        usort($merged, fn (SearchResult $a, SearchResult $b): int => ($b->score ?? 0) <=> ($a->score ?? 0));
+        usort($merged, function (SearchResult $a, SearchResult $b): int {
+            return (($b->score ?? 0) <=> ($a->score ?? 0))
+                ?: ($a->rank <=> $b->rank)
+                ?: ($a->fingerprint() <=> $b->fingerprint());
+        });
 
         return new SearchResponse(array_slice($merged, 0, $query->limit), $used, $failures);
+    }
+
+    /**
+     * @param  list<SearchProvider>  $providers
+     * @return array{array<string, list<SearchResult>>, array<string, string>}
+     */
+    private function concurrentCalls(array $providers, SearchQuery $query): array
+    {
+        $answers = [];
+        $failures = [];
+        $promises = [];
+
+        foreach ($providers as $provider) {
+            try {
+                $cached = $this->cached($provider, $query);
+
+                if ($cached !== null) {
+                    $answers[$provider->name()] = $cached;
+
+                    continue;
+                }
+
+                $this->meter->consume($query->tenant, $provider->name());
+
+                if ($provider instanceof ConcurrentSearchProvider) {
+                    $promises[$provider->name()] = $provider->searchAsync($query)->then(
+                        fn (array $results): array => $this->store($provider, $query, $results),
+                    );
+
+                    continue;
+                }
+
+                $answers[$provider->name()] = $this->store($provider, $query, $provider->search($query));
+            } catch (Throwable $e) {
+                $failures[$provider->name()] = $e->getMessage();
+            }
+        }
+
+        if ($promises !== []) {
+            foreach (Utils::settle($promises)->wait() as $provider => $settled) {
+                if ($settled['state'] === 'fulfilled') {
+                    $answers[$provider] = $settled['value'];
+                } else {
+                    $reason = $settled['reason'];
+                    $failures[$provider] = $reason instanceof Throwable ? $reason->getMessage() : (string) $reason;
+                }
+            }
+        }
+
+        $order = array_flip(array_map(fn (SearchProvider $provider): string => $provider->name(), $providers));
+        uksort($answers, fn (string $a, string $b): int => $order[$a] <=> $order[$b]);
+        uksort($failures, fn (string $a, string $b): int => $order[$a] <=> $order[$b]);
+
+        return [$answers, $failures];
     }
 
     /**
@@ -134,23 +180,42 @@ class SearchRouter
      */
     private function call(SearchProvider $provider, SearchQuery $query): array
     {
-        $key = $query->cacheKey($provider->name());
+        $cached = $this->cached($provider, $query);
 
-        if ($this->cacheEnabled()) {
-            $cached = $this->cache->get($key);
-
-            if (is_array($cached)) {
-                return array_map(fn (array $row): SearchResult => SearchResult::fromArray($row), $cached);
-            }
+        if ($cached !== null) {
+            return $cached;
         }
 
         $this->meter->consume($query->tenant, $provider->name());
 
-        $results = $provider->search($query);
+        return $this->store($provider, $query, $provider->search($query));
+    }
 
+    /**
+     * @return list<SearchResult>|null
+     */
+    private function cached(SearchProvider $provider, SearchQuery $query): ?array
+    {
+        if (! $this->cacheEnabled()) {
+            return null;
+        }
+
+        $cached = $this->cache->get($query->cacheKey($provider->name()));
+
+        return is_array($cached)
+            ? array_map(fn (array $row): SearchResult => SearchResult::fromArray($row), $cached)
+            : null;
+    }
+
+    /**
+     * @param  list<SearchResult>  $results
+     * @return list<SearchResult>
+     */
+    private function store(SearchProvider $provider, SearchQuery $query, array $results): array
+    {
         if ($this->cacheEnabled()) {
             $this->cache->put(
-                $key,
+                $query->cacheKey($provider->name()),
                 array_map(fn (SearchResult $r): array => $r->toArray(), $results),
                 (int) ($this->config['cache']['ttl'] ?? 86400),
             );

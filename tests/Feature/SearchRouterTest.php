@@ -7,19 +7,28 @@ use Whilesmart\WebSearch\Exceptions\QuotaExhaustedException;
 use Whilesmart\WebSearch\SearchRouter;
 use Whilesmart\WebSearch\Types\SearchQuery;
 
-// Response shapes follow the published Tavily and Brave API references.
 function tavilyBody(array $urls): array
 {
-    return ['results' => array_map(fn ($u) => [
-        'title' => 'Tavily '.$u, 'url' => $u, 'content' => 'snippet', 'score' => 0.9,
-    ], $urls)];
+    $body = fixture('tavily-search');
+    $sample = $body['results'][0];
+    $body['results'] = array_map(fn ($url) => array_merge($sample, [
+        'title' => 'Tavily '.$url,
+        'url' => $url,
+    ]), $urls);
+
+    return $body;
 }
 
 function braveBody(array $urls): array
 {
-    return ['web' => ['results' => array_map(fn ($u) => [
-        'title' => 'Brave '.$u, 'url' => $u, 'description' => 'snippet',
-    ], $urls)]];
+    $body = fixture('brave-search');
+    $sample = $body['web']['results'][0];
+    $body['web']['results'] = array_map(fn ($url) => array_merge($sample, [
+        'title' => 'Brave '.$url,
+        'url' => $url,
+    ]), $urls);
+
+    return $body;
 }
 
 beforeEach(function () {
@@ -87,6 +96,44 @@ it('distinguishes an empty index from a blockade', function () {
 
     expect($response->results)->toBe([])
         ->and($response->isBlocked())->toBeFalse();
+});
+
+it('does not report a blockade when one provider answered with no matches', function () {
+    Http::fake([
+        'api.tavily.com/*' => Http::response(tavilyBody([])),
+        'api.search.brave.com/*' => Http::response([], 503),
+    ]);
+
+    $response = app(SearchRouter::class)->search(new SearchQuery('nothing here', 10));
+
+    expect($response->results)->toBe([])
+        ->and($response->used)->toBe(['tavily'])
+        ->and($response->failures)->toHaveKey('brave')
+        ->and($response->isBlocked())->toBeFalse();
+});
+
+it('records empty responders while continuing in waterfall mode', function () {
+    Http::fake([
+        'api.tavily.com/*' => Http::response(tavilyBody([])),
+        'api.search.brave.com/*' => Http::response(braveBody(['https://c.test/z'])),
+    ]);
+
+    $response = app(SearchRouter::class)->search(new SearchQuery('boutiques', 10), RoutingMode::Waterfall);
+
+    expect($response->used)->toBe(['tavily', 'brave'])
+        ->and($response->results)->toHaveCount(1)
+        ->and($response->isBlocked())->toBeFalse();
+});
+
+it('maps the published serper response shape', function () {
+    config()->set('websearch.providers', ['serper']);
+    Http::fake(['google.serper.dev/*' => Http::response(fixture('serper-search'))]);
+
+    $response = app(SearchRouter::class)->search(new SearchQuery('google', 10));
+
+    expect($response->used)->toBe(['serper'])
+        ->and($response->results[0]->title)->toBe('Google')
+        ->and($response->results[0]->url)->toBe('https://www.google.com/?gws_rd=ssl');
 });
 
 it('serves a repeated query from cache without calling the provider again', function () {
