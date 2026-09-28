@@ -44,7 +44,7 @@ first provider returning results.
 
 Set the default in `config/websearch.php` or pass `RoutingMode` per call.
 
-## Three interfaces
+## Four interfaces
 
 `SearchProvider` returns unstructured web results. Ships with Brave, Tavily,
 Serper, and SearXNG. The built-in HTTP providers also implement
@@ -53,6 +53,24 @@ Serper, and SearXNG. The built-in HTTP providers also implement
 `ContentFetcher` turns a URL into markdown. Ships with Crawl4AI.
 Call `FetcherManager::fetch()` to use the first configured fetcher, or name a
 specific driver.
+
+`SnapshotFetcher` captures what a page says about itself: HTML, markdown, meta
+and Open Graph tags, images, videos, the favicon, and a screenshot. Ships with
+Crawl4AI (rendered in a headless browser) and a plain HTTP driver (no script
+rendering, no screenshot). `SnapshotManager::snapshot()` walks them in order.
+A failure throws `SnapshotFailedException` with a typed reason (`blocked`,
+`timeout`, `unreachable`, `refused`, `http_status`, `unavailable`), the anti-bot
+vendor when one is recognised, and every driver's attempt.
+
+To see why snapshots fail on a deployed host, run the drivers side by side:
+
+```bash
+php artisan websearch:snapshot https://example.com/ https://www.g2.com/
+```
+
+A page blocked for the browser but not for the plain request is fingerprinting
+the browser. A page blocked for both refuses automated clients; run it from a
+second network to tell whether the refusal is tied to the host's address.
 
 `Source` is a queryable feed of structured records. Each source declares a JSON
 Schema for its own `attributes`, so the core stays ignorant of any one domain:
