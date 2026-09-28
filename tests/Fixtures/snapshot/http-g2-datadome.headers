@@ -1,0 +1,25 @@
+HTTP/2 103 
+link: </assets/dashboard-shapes-778-8435a449a6c7713f42399cc272cb62900483ea6153c98d7de0e22876e01698ee.png>; as=image; fetchpriority=high; nopush; rel=preload, <https://www.g2.com/assets/nessy_app-7c5aeba898.css>; as=style; nopush; rel=preload, <https://www.g2.com/assets/app_f17444da5bcfae47a6a5.js>; as=script; nopush; rel=preload, </elevate-assets/application-53b27c4e7144d8f4.digested.css>; as=style; nopush; rel=preload
+
+HTTP/2 403 
+date: Mon, 28 Sep 2026 04:09:23 GMT
+content-type: text/html;charset=utf-8
+access-control-allow-origin: *
+cache-control: max-age=0, private, no-cache, no-store, must-revalidate
+vary: accept-encoding
+pragma: no-cache
+accept-ch: Sec-CH-UA,Sec-CH-UA-Mobile,Sec-CH-UA-Platform,Sec-CH-UA-Arch,Sec-CH-UA-Full-Version-List,Sec-CH-UA-Model,Sec-CH-Device-Memory
+access-control-allow-credentials: true
+access-control-expose-headers: x-dd-b, x-set-cookie
+charset: utf-8
+x-dd-b: 1
+x-datadome: protected
+x-datadome-cid: AHrlqAAAAAMAta2CmtjWvZgA--aDAg==
+strict-transport-security: max-age=15552000; includeSubDomains; preload
+x-content-type-options: nosniff
+set-cookie: datadome=19vcn7FSJuaQgT5iIR1zq7WztRnwsFspIOby50aoze22bGO_rhEes2sishI4zk2OLzIV8mRZ~YpT8sgZsXuyHifCGDk7drryC_phQ~Q3c2vhnuGvbKvTL9HnuDQx_kqe; Max-Age=31536000; Domain=.g2.com; Path=/; Secure; SameSite=Lax
+set-cookie: __cf_bm=pn76YANe7glOq43Efy89j8vkvNGx6iOPW4vTORdhMdU-1790568563.9123993-1.0.1.1-fuyC52K3_6VFTjc4cTeJqDYJDcvXF.WWjb9ONaQUw2Fa6Vd7RyzBDgYL9JudeguOTG9OoWZWUPMRQuwdioTGrJ.Uv8YRvD6sqT.Ix4kyQtU55KXQphm9kSfEDFJDsxYL; HttpOnly; SameSite=None; Secure; Path=/; Domain=g2.com; Expires=Mon, 28 Sep 2026 04:39:23 GMT
+server: cloudflare
+cf-ray: a41fe4747b263157-CPT
+alt-svc: h3=":443"; ma=86400
+

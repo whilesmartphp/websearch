@@ -40,10 +40,22 @@ return [
 
     'fetchers' => ['crawl4ai'],
 
+    // Ordered. A snapshot falls through to the next driver when one fails.
+    'snapshotters' => ['crawl4ai', 'http'],
+
     'crawl4ai' => [
         'url' => env('WEBSEARCH_CRAWL4AI_URL'),
         'token' => env('WEBSEARCH_CRAWL4AI_TOKEN'),
         'timeout' => (int) env('WEBSEARCH_CRAWL_TIMEOUT', 30),
+        'page_timeout' => (int) env('WEBSEARCH_CRAWL_PAGE_TIMEOUT', 45000),
+        'wait_until' => env('WEBSEARCH_CRAWL_WAIT_UNTIL', 'networkidle'),
+        'screenshot' => (bool) env('WEBSEARCH_CRAWL_SCREENSHOT', true),
+    ],
+
+    'http' => [
+        'enabled' => (bool) env('WEBSEARCH_HTTP_SNAPSHOT', true),
+        'timeout' => (int) env('WEBSEARCH_HTTP_SNAPSHOT_TIMEOUT', 20),
+        'user_agent' => env('WEBSEARCH_HTTP_USER_AGENT'),
     ],
 
     // Keyed by instance name. 'driver' picks the implementation, so one
