@@ -1,0 +1,14 @@
+{
+    "type": "search",
+    "query": {"original": "artificial intelligence"},
+    "web": {
+        "results": [
+            {
+                "title": "Artificial Intelligence - Overview",
+                "url": "https://example.com/ai",
+                "description": "Learn about artificial intelligence...",
+                "age": "2024-10-08T10:30:00.000Z"
+            }
+        ]
+    }
+}

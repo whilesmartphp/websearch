@@ -9,11 +9,11 @@ use Whilesmart\WebSearch\Exceptions\ProviderFailedException;
 use Whilesmart\WebSearch\Types\SearchQuery;
 use Whilesmart\WebSearch\Types\SearchResult;
 
-class BraveProvider extends HttpSearchProvider
+class SerperProvider extends HttpSearchProvider
 {
     public function name(): string
     {
-        return 'brave';
+        return 'serper';
     }
 
     public function isConfigured(): bool
@@ -29,13 +29,14 @@ class BraveProvider extends HttpSearchProvider
     public function searchAsync(SearchQuery $query): PromiseInterface
     {
         return $this->http(true)
-            ->withHeaders(['X-Subscription-Token' => (string) $this->option('api_key')])
-            ->get($this->option('endpoint', 'https://api.search.brave.com/res/v1/web/search'), array_filter([
+            ->withHeaders(['X-API-KEY' => (string) $this->option('api_key')])
+            ->post($this->option('endpoint', 'https://google.serper.dev/search'), array_filter([
                 'q' => $query->query,
-                'count' => min($query->limit, 20),
-                'country' => $query->country,
-                'safesearch' => 'moderate',
-            ], fn ($v) => $v !== null))->then(fn (Response $response): array => $this->results($response, $query));
+                'num' => min($query->limit, 20),
+                'gl' => $query->country,
+                'hl' => $query->language,
+            ], fn ($value) => $value !== null))
+            ->then(fn (Response $response): array => $this->results($response, $query));
     }
 
     private function results(Response $response, SearchQuery $query): array
@@ -46,12 +47,12 @@ class BraveProvider extends HttpSearchProvider
 
         $results = [];
 
-        foreach (array_values($response->json('web.results') ?? []) as $i => $row) {
+        foreach (array_values($response->json('organic') ?? []) as $i => $row) {
             $results[] = new SearchResult(
                 (string) ($row['title'] ?? ''),
-                (string) ($row['url'] ?? ''),
-                (string) ($row['description'] ?? ''),
-                $i + 1,
+                (string) ($row['link'] ?? ''),
+                (string) ($row['snippet'] ?? ''),
+                (int) ($row['position'] ?? $i + 1),
                 [$this->name()],
             );
         }

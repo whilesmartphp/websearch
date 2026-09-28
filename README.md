@@ -11,7 +11,7 @@ results, caches repeats, and meters usage per tenant.
 
 ```bash
 composer require whilesmart/websearch
-php artisan vendor:publish --tag=signals-config
+php artisan vendor:publish --tag=websearch-config
 ```
 
 ## Use
@@ -35,20 +35,24 @@ returned a challenge, and callers need to tell them apart.
 
 ### Routing modes
 
-`merge` queries every configured provider, unions the results, collapses URLs
-that differ only in host prefix or trailing slash, and ranks by how many
-providers agreed. One call per provider, better ranking.
+`merge` starts every configured HTTP provider concurrently, unions the results,
+collapses equivalent URLs, and combines the provider rankings with reciprocal
+rank fusion. One call per provider, with failures isolated by provider.
 
-`waterfall` stops at the first provider that answers. One call total.
+`waterfall` continues through failures and empty responses, then stops at the
+first provider returning results.
 
 Set the default in `config/websearch.php` or pass `RoutingMode` per call.
 
 ## Three interfaces
 
 `SearchProvider` returns unstructured web results. Ships with Brave, Tavily,
-and SearXNG.
+Serper, and SearXNG. The built-in HTTP providers also implement
+`ConcurrentSearchProvider` so merge mode can run them together.
 
 `ContentFetcher` turns a URL into markdown. Ships with Crawl4AI.
+Call `FetcherManager::fetch()` to use the first configured fetcher, or name a
+specific driver.
 
 `Source` is a queryable feed of structured records. Each source declares a JSON
 Schema for its own `attributes`, so the core stays ignorant of any one domain:

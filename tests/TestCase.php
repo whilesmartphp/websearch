@@ -14,9 +14,10 @@ abstract class TestCase extends Orchestra
 
     protected function defineEnvironment($app): void
     {
-        $app['config']->set('websearch.providers', ['tavily', 'brave', 'searxng']);
+        $app['config']->set('websearch.providers', ['tavily', 'serper', 'brave', 'searxng']);
         $app['config']->set('websearch.tavily.api_key', 'tavily-test-key');
         $app['config']->set('websearch.brave.api_key', 'brave-test-key');
+        $app['config']->set('websearch.serper.api_key', 'serper-test-key');
         $app['config']->set('websearch.searxng.url', 'http://searxng.test:8080');
         $app['config']->set('websearch.crawl4ai.url', 'http://crawl4ai.test:11235');
         $app['config']->set('websearch.sources', [

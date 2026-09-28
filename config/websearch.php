@@ -10,7 +10,7 @@ return [
     'timeout' => (int) env('WEBSEARCH_TIMEOUT', 15),
 
     // Ordered. Waterfall walks this list; merge queries all of them.
-    'providers' => ['tavily', 'brave', 'searxng'],
+    'providers' => ['tavily', 'serper', 'brave', 'searxng'],
 
     'cache' => [
         'enabled' => (bool) env('WEBSEARCH_CACHE', true),
@@ -27,6 +27,11 @@ return [
         'api_key' => env('TAVILY_API_KEY'),
         'endpoint' => 'https://api.tavily.com/search',
         'search_depth' => env('TAVILY_SEARCH_DEPTH', 'basic'),
+    ],
+
+    'serper' => [
+        'api_key' => env('SERPER_API_KEY'),
+        'endpoint' => 'https://google.serper.dev/search',
     ],
 
     'searxng' => [

@@ -21,7 +21,7 @@ final class SearchResponse
      */
     public function isBlocked(): bool
     {
-        return $this->results === [] && $this->failures !== [];
+        return $this->results === [] && $this->used === [] && $this->failures !== [];
     }
 
     public function toArray(): array
