@@ -5,11 +5,15 @@ namespace Whilesmart\WebSearch;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Support\ServiceProvider;
 use Whilesmart\WebSearch\Console\ProbeCommand;
+use Whilesmart\WebSearch\Console\SnapshotCommand;
 use Whilesmart\WebSearch\Contracts\ContentFetcher;
 use Whilesmart\WebSearch\Contracts\SearchProvider;
+use Whilesmart\WebSearch\Contracts\SnapshotFetcher;
 use Whilesmart\WebSearch\Contracts\Source;
 use Whilesmart\WebSearch\Contracts\UsageMeter;
 use Whilesmart\WebSearch\Fetchers\Crawl4aiFetcher;
+use Whilesmart\WebSearch\Fetchers\Crawl4aiSnapshotFetcher;
+use Whilesmart\WebSearch\Fetchers\HttpSnapshotFetcher;
 use Whilesmart\WebSearch\Metering\NullUsageMeter;
 use Whilesmart\WebSearch\Providers\BraveProvider;
 use Whilesmart\WebSearch\Providers\SearxngProvider;
@@ -36,6 +40,12 @@ class WebSearchServiceProvider extends ServiceProvider
     /** @var array<string, class-string> */
     public static array $fetchers = [
         'crawl4ai' => Crawl4aiFetcher::class,
+    ];
+
+    /** @var array<string, class-string> */
+    public static array $snapshotters = [
+        'crawl4ai' => Crawl4aiSnapshotFetcher::class,
+        'http' => HttpSnapshotFetcher::class,
     ];
 
     /**
@@ -70,6 +80,10 @@ class WebSearchServiceProvider extends ServiceProvider
         $this->app->singleton(FetcherManager::class, fn ($app): FetcherManager => new FetcherManager(
             $app->make('websearch.fetchers'),
         ));
+        $this->app->singleton('websearch.snapshotters', fn ($app): array => $this->buildSnapshotters($app['config']->get('websearch')));
+        $this->app->singleton(SnapshotManager::class, fn ($app): SnapshotManager => new SnapshotManager(
+            $app->make('websearch.snapshotters'),
+        ));
         $this->app->singleton(SourceRegistry::class, fn ($app): SourceRegistry => new SourceRegistry(
             $this->buildSources($app['config']->get('websearch')),
         ));
@@ -78,7 +92,7 @@ class WebSearchServiceProvider extends ServiceProvider
     public function boot(): void
     {
         if ($this->app->runningInConsole()) {
-            $this->commands([ProbeCommand::class]);
+            $this->commands([ProbeCommand::class, SnapshotCommand::class]);
 
             $this->publishes([
                 __DIR__.'/../config/websearch.php' => config_path('websearch.php'),
@@ -115,6 +129,25 @@ class WebSearchServiceProvider extends ServiceProvider
 
         foreach ($config['fetchers'] ?? [] as $name) {
             $class = self::$fetchers[$name] ?? null;
+
+            if ($class !== null) {
+                $built[$name] = new $class($config[$name] ?? [], (int) ($config[$name]['timeout'] ?? 30));
+            }
+        }
+
+        return $built;
+    }
+
+    /**
+     * @param  array<string, mixed>  $config
+     * @return array<string, SnapshotFetcher>
+     */
+    private function buildSnapshotters(array $config): array
+    {
+        $built = [];
+
+        foreach ($config['snapshotters'] ?? [] as $name) {
+            $class = self::$snapshotters[$name] ?? null;
 
             if ($class !== null) {
                 $built[$name] = new $class($config[$name] ?? [], (int) ($config[$name]['timeout'] ?? 30));
